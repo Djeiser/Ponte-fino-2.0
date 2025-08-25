@@ -1,176 +1,261 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import type { GameState, ChatMessage, PainLog, ToastInfo } from './types';
+import { INITIAL_GAME_STATE, INITIAL_ACHIEVEMENTS } from './constants';
+import { getGeminiResponse, analyzeSensationWithGemini } from './services/geminiService';
+import MainContent from './components/MainContent';
+import ChatAside from './components/ChatAside';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { Chat } from '@google/genai';
-import { createChatSession } from './services/geminiService';
-import type { Message } from './types';
-import ChatMessage from './components/ChatMessage';
-import { SendIcon, FriendlyBotIcon, SuggestionIcon } from './components/IconComponents';
-import Spinner from './components/Spinner';
-
-// IMPORTANTE: Reemplaza este enlace de ejemplo por el de tu Formulario de Google
-const SUGGESTION_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfCQz3FTTAF_zDVarI8Mpus9cjhaLg47phRs8DvpM-n89IP3Q/viewform?usp=header';
-
-const App: React.FC = () => {
-  const [chat, setChat] = useState<Chat | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [userInput, setUserInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const welcomeMessage: Message = {
-    role: 'model',
-    text: '¡Hola! Soy InfoClase Bot. ¿En qué puedo ayudaros hoy con la clase del profe Guille?',
-  };
-
-  const examplePrompts = [
-    '¿Qué tiene que hacer mi hijo/a en la tarea de Lengua?',
-    '¿Cuándo es la actividad evaluativa de Matemáticas?',
-    '¿Qué se evalúa en la tarea de Francés?',
-  ];
-
-  useEffect(() => {
-    setChat(createChatSession());
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
-
-  const handleSendMessage = useCallback(async (messageText: string) => {
-    if (!chat || !messageText.trim() || isLoading) return;
-
-    const userMessage: Message = { role: 'user', text: messageText };
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
-    setUserInput('');
-
-    try {
-      const stream = await chat.sendMessageStream({ message: messageText });
-      let modelResponse = '';
-      setMessages(prev => [...prev, { role: 'model', text: '' }]);
-      
-      for await (const chunk of stream) {
-        modelResponse += chunk.text;
-        setMessages(prev => {
-            const newMessages = [...prev];
-            newMessages[newMessages.length - 1].text = modelResponse;
-            return newMessages;
-        });
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage: Message = { role: 'model', text: 'Lo siento, ha ocurrido un error y no puedo responder en este momento.' };
-      setMessages(prev => {
-        const newMessages = [...prev];
-        if(newMessages[newMessages.length-1].text === ''){
-             newMessages[newMessages.length-1] = errorMessage;
-        } else {
-            newMessages.push(errorMessage);
-        }
-        return newMessages;
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [chat, isLoading]);
-  
-  const handlePromptClick = (prompt: string) => {
-    setUserInput(prompt);
-    document.getElementById('chat-input')?.focus();
-  };
-
-  return (
-    <div className="flex flex-col h-screen bg-yellow-50">
-      <header className="bg-yellow-100 border-b border-yellow-200 p-4 shadow-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <FriendlyBotIcon className="w-8 h-8" />
-            <div>
-              <h1 className="text-xl font-bold text-slate-800">Aula Ayuda Familias</h1>
-              <p className="text-sm text-slate-600">Asistente digital de la clase del profe Guille.</p>
-            </div>
-          </div>
-          <a
-            href={SUGGESTION_FORM_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 rounded-full hover:bg-yellow-200 transition-colors"
-            aria-label="Enviar una sugerencia"
-            title="Enviar una sugerencia"
-          >
-            <SuggestionIcon className="w-6 h-6 text-slate-600" />
-          </a>
+const Header: React.FC = () => (
+    <header className="text-center mb-10">
+        <div className="flex justify-center items-center gap-4 mb-4">
+            <svg className="w-12 h-12 text-emerald-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" fill="currentColor" fillOpacity="0.2"/>
+                <path d="M15.8925 8.35255C15.5525 7.98255 15.0125 7.91255 14.5825 8.16255L11.4325 10.0525L10.0625 9.16255C9.59255 8.86255 8.99255 8.98255 8.65255 9.41255L7.22255 11.2425C6.88255 11.6725 6.98255 12.2825 7.45255 12.5825L10.5325 14.7225C10.8325 14.9325 11.2425 14.9325 11.5425 14.7225L16.0325 11.4825C16.5025 11.1825 16.6325 10.5725 16.2825 10.1425L15.8925 9.64255V8.35255Z" fill="currentColor"/>
+                <path d="M12 15L11 17H13L12 15Z" fill="currentColor"/>
+            </svg>
+            <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900">Coach de Recuperación</h1>
         </div>
-      </header>
+        <p className="text-lg text-slate-600">Sube de nivel tu recuperación. ¡Cada repetición cuenta!</p>
+    </header>
+);
 
-      <>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-            {messages.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="inline-block p-4 bg-blue-100 rounded-full mb-4">
-                    <FriendlyBotIcon className="w-20 h-20" />
-                </div>
-                <h2 className="text-2xl font-bold text-slate-800">{welcomeMessage.text}</h2>
-                <p className="mt-4 text-slate-600">Puedes empezar con una de estas preguntas:</p>
-                <div className="mt-6 flex flex-col sm:flex-row flex-wrap justify-center gap-3">
-                  {examplePrompts.map((prompt, i) => (
-                    <button key={i} onClick={() => handlePromptClick(prompt)} className="px-4 py-2 bg-white border border-slate-300 rounded-full text-slate-700 hover:bg-yellow-100 transition-colors shadow-sm">
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-                messages.map((msg, index) => <ChatMessage key={index} message={msg} />)
-            )}
-            {isLoading && messages[messages.length-1]?.text === '' && (
-                <div className="flex items-start gap-3 md:gap-4">
-                  <div className="flex-shrink-0 mt-1"><FriendlyBotIcon className="w-8 h-8" /></div>
-                  <div className="max-w-xl lg:max-w-2xl px-4 py-3 rounded-2xl bg-white text-slate-800 shadow-sm border border-slate-100 rounded-tl-none">
-                      <Spinner className="w-5 h-5 text-slate-500" />
-                  </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-        </main>
-        <footer className="bg-yellow-100/90 backdrop-blur-lg border-t border-yellow-200 p-4 sticky bottom-0">
-          <div className="max-w-4xl mx-auto">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage(userInput);
-              }}
-              className="flex items-center gap-3"
-            >
-              <input
-                id="chat-input"
-                type="text"
-                value={userInput}
-                onChange={(e) => setUserInput(e.target.value)}
-                placeholder="Escribe tu pregunta aquí..."
-                className="flex-1 w-full px-4 py-3 rounded-full border border-slate-300 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow disabled:opacity-50"
-                disabled={isLoading}
-                autoComplete="off"
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !userInput.trim()}
-                className="flex-shrink-0 w-12 h-12 flex items-center justify-center bg-blue-600 text-white font-semibold rounded-full shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all transform hover:scale-105 disabled:bg-slate-400 disabled:cursor-not-allowed disabled:scale-100"
-                aria-label="Enviar mensaje"
-              >
-                {isLoading ? <Spinner className="w-6 h-6"/> : <SendIcon className="w-6 h-6" />}
-              </button>
-            </form>
-              <p className="text-xs text-center text-slate-500 mt-2 px-4">
-                Soy un asistente digital. Para dudas pedagógicas o personales, consultad siempre con el profe Guille.
-              </p>
-          </div>
-        </footer>
-      </>
-    </div>
-  );
+const Toast: React.FC<ToastInfo & { onDismiss: () => void }> = ({ message, title, icon, iconColor, onDismiss }) => {
+    useEffect(() => {
+        const timer = setTimeout(onDismiss, 6000);
+        return () => clearTimeout(timer);
+    }, [onDismiss]);
+
+    return (
+        <div className="toast-notification fixed bottom-5 right-5 bg-slate-800 text-white p-4 rounded-lg shadow-xl transform translate-y-24 opacity-0 transition-all duration-500 z-50 flex items-center gap-4 max-w-sm show">
+            <i className={`fas ${icon} text-3xl ${iconColor}`}></i>
+            <div>
+                <p className="font-bold">{title}</p>
+                <p className="text-sm">{message}</p>
+            </div>
+        </div>
+    );
 };
+
+
+function App() {
+    const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
+    const [isTyping, setIsTyping] = useState(false);
+    const [toasts, setToasts] = useState<ToastInfo[]>([]);
+
+    const showToast = useCallback((message: string, title: string, icon: string, iconColor: string) => {
+        setToasts(currentToasts => [...currentToasts, { id: Date.now(), message, title, icon, iconColor }]);
+    }, []);
+
+    const dismissToast = (id: number) => {
+        setToasts(currentToasts => currentToasts.filter(t => t.id !== id));
+    };
+
+    const getXPForLevel = (level: number) => 100 * Math.pow(1.5, level - 1);
+
+    const checkAchievements = useCallback((currentState: GameState) => {
+        const newState: GameState = JSON.parse(JSON.stringify(currentState));
+        let achievementUnlocked = false;
+
+        const completedDailies = Object.values(newState.completedWorkouts).filter(date => new Date(date).toDateString() !== new Date(0).toDateString()).length;
+        const completedStrengths = Object.keys(newState.completedWorkouts).filter(k => k.startsWith('day')).length;
+
+        if (completedDailies > 0 && !newState.achievements.first_daily.unlocked) {
+            newState.achievements.first_daily.unlocked = true;
+            showToast('Logro Desbloqueado: Un Buen Comienzo', '¡Logro!', 'fa-award', 'text-yellow-400');
+            achievementUnlocked = true;
+        }
+        if (completedStrengths > 0 && !newState.achievements.first_strength.unlocked) {
+            newState.achievements.first_strength.unlocked = true;
+            showToast('Logro Desbloqueado: ¡A Mover Hierro!', '¡Logro!', 'fa-award', 'text-yellow-400');
+            achievementUnlocked = true;
+        }
+        if (newState.dailyStreak >= 3 && !newState.achievements.streak_3.unlocked) {
+            newState.achievements.streak_3.unlocked = true;
+            showToast('Logro Desbloqueado: Creando el Hábito', '¡Logro!', 'fa-award', 'text-yellow-400');
+            achievementUnlocked = true;
+        }
+        if (newState.dailyStreak >= 7 && !newState.achievements.streak_7.unlocked) {
+            newState.achievements.streak_7.unlocked = true;
+            showToast('Logro Desbloqueado: Imparable', '¡Logro!', 'fa-award', 'text-yellow-400');
+            achievementUnlocked = true;
+        }
+        if (newState.level >= 5 && !newState.achievements.level_5.unlocked) {
+            newState.achievements.level_5.unlocked = true;
+            showToast('Logro Desbloqueado: Veterano de la Recuperación', '¡Logro!', 'fa-award', 'text-yellow-400');
+            achievementUnlocked = true;
+        }
+
+        return achievementUnlocked ? newState.achievements : currentState.achievements;
+
+    }, [showToast]);
+
+    const addXP = useCallback((amount: number) => {
+        setGameState(prevState => {
+            const newState = { ...prevState, xp: prevState.xp + amount };
+            showToast(`¡Has ganado ${amount} XP!`, 'XP Ganados', 'fa-plus-circle', 'text-emerald-400');
+
+            while (newState.xp >= getXPForLevel(newState.level)) {
+                newState.xp -= getXPForLevel(newState.level);
+                newState.level++;
+                showToast(`¡Felicidades! Has subido al Nivel ${newState.level}`, '¡Subida de Nivel!', 'fa-arrow-up', 'text-yellow-400');
+            }
+            
+            const updatedAchievements = checkAchievements(newState);
+            newState.achievements = updatedAchievements;
+
+            return newState;
+        });
+    }, [showToast, checkAchievements]);
+
+    const handleWorkoutCompletion = useCallback((dayId: string) => {
+        setGameState(prevState => {
+            const today = new Date().toDateString();
+            if (prevState.completedWorkouts[dayId] === today) return prevState;
+
+            const newState = { ...prevState, completedWorkouts: { ...prevState.completedWorkouts, [dayId]: today } };
+
+            if (dayId === 'daily') {
+                const lastDate = prevState.lastDailyCompletion ? new Date(prevState.lastDailyCompletion) : null;
+                const yesterday = new Date();
+                yesterday.setDate(new Date().getDate() - 1);
+
+                if (!lastDate || lastDate.toDateString() === yesterday.toDateString()) {
+                    newState.dailyStreak++;
+                } else if (lastDate?.toDateString() !== new Date().toDateString()) {
+                    newState.dailyStreak = 1;
+                }
+                newState.lastDailyCompletion = new Date().toISOString();
+                showToast(`¡Rutina diaria completada! Racha actual: ${newState.dailyStreak} días.`, '¡Racha!', 'fa-fire', 'text-orange-400');
+                addXP(25);
+            } else {
+                showToast(`¡Entrenamiento del ${dayId.replace('day', 'Día ')} completado!`, '¡Entreno Completo!', 'fa-trophy', 'text-yellow-400');
+                addXP(75);
+            }
+            return newState;
+        });
+    }, [addXP, showToast]);
+
+    const handleSavePainDiary = useCallback((log: PainLog) => {
+        setGameState(prevState => {
+            const today = new Date().toISOString().split('T')[0];
+            const newDiary = { ...prevState.painDiary, [today]: log };
+            showToast('¡Tu diario ha sido actualizado!', 'Diario Guardado', 'fa-book-medical', 'text-emerald-400');
+            return { ...prevState, painDiary: newDiary };
+        });
+    }, [showToast]);
+
+    const handleSendMessage = async (message: string, isSensationAnalysis: boolean) => {
+        const userMessage: ChatMessage = { role: 'user', parts: [{ text: message }] };
+        setGameState(prevState => ({ ...prevState, chatHistory: [...prevState.chatHistory, userMessage] }));
+        setIsTyping(true);
+
+        const responseText = isSensationAnalysis
+            ? await analyzeSensationWithGemini(message.replace('He sentido: ', ''))
+            : await getGeminiResponse(gameState.chatHistory, message);
+        
+        const botMessage: ChatMessage = { role: 'model', parts: [{ text: responseText }] };
+        setGameState(prevState => ({ ...prevState, chatHistory: [...prevState.chatHistory, botMessage] }));
+        setIsTyping(false);
+    };
+
+    // Load and save state
+    useEffect(() => {
+        try {
+            const savedState = localStorage.getItem('recoveryGameState');
+            if (savedState) {
+                const parsedState: GameState = JSON.parse(savedState);
+                
+                // Merge saved achievements with initial to handle new additions
+                const mergedAchievements = { ...INITIAL_ACHIEVEMENTS, ...parsedState.achievements };
+                Object.keys(INITIAL_ACHIEVEMENTS).forEach(key => {
+                    if (parsedState.achievements[key]) {
+                        mergedAchievements[key].unlocked = parsedState.achievements[key].unlocked;
+                    }
+                });
+
+                // Update streak
+                if (parsedState.lastDailyCompletion) {
+                    const lastDate = new Date(parsedState.lastDailyCompletion);
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(today.getDate() - 1);
+                    if (lastDate.toDateString() !== yesterday.toDateString() && lastDate.toDateString() !== today.toDateString()) {
+                        parsedState.dailyStreak = 0;
+                    }
+                }
+
+                setGameState({ ...INITIAL_GAME_STATE, ...parsedState, achievements: mergedAchievements });
+
+            } else {
+                // First time load
+                setTimeout(() => {
+                    const welcomeMessage: ChatMessage = { role: 'model', parts: [{ text: "¡Bienvenido a la versión 4.0! He renovado el diseño y corregido errores. ¡A seguir sumando XP!" }] };
+                    setGameState(prev => ({...prev, chatHistory: [welcomeMessage]}))
+                }, 1000);
+            }
+        } catch (error) {
+            console.error("Failed to load game state, resetting:", error);
+            localStorage.removeItem('recoveryGameState');
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem('recoveryGameState', JSON.stringify(gameState));
+    }, [gameState]);
+
+
+    // Proactive coach
+    useEffect(() => {
+        const proactiveCoach = () => {
+            const hasBeenNotifiedToday = (type: string) => {
+                const lastNotification = localStorage.getItem(`notification_${type}`);
+                if (!lastNotification) return false;
+                const today = new Date().toDateString();
+                return lastNotification === today;
+            };
+            const setNotifiedToday = (type: string) => {
+                localStorage.setItem(`notification_${type}`, new Date().toDateString());
+            };
+
+            const now = new Date();
+            const day = now.getDay();
+            const hour = now.getHours();
+            if (hour >= 9 && hour < 12 && !hasBeenNotifiedToday('morning')) { showToast("¡Buenos días! Un nuevo día para sumar XP. Recuerda hacer tu rutina de activación.", "¡A empezar!", "fa-sun", "text-yellow-400"); setNotifiedToday('morning'); }
+            const isTrainingDay = day === 1 || day === 3 || day === 5; // Mon, Wed, Fri
+            if (isTrainingDay && hour >= 12 && hour < 18 && !hasBeenNotifiedToday('training')) { showToast(`¡Misión del día! Hoy toca entrenamiento de fuerza. ¡A por esos 75 XP!`, "¡Día de Entreno!", "fa-dumbbell", "text-slate-300"); setNotifiedToday('training'); }
+            if (hour >= 20 && hour < 22 && !hasBeenNotifiedToday('evening')) { showToast("No te olvides de tu rutina diaria para mantener la racha. ¡Son 25 XP fáciles!", "¿Última misión?", "fa-moon", "text-blue-300"); setNotifiedToday('evening'); }
+            if (day === 0 && hour >= 18 && hour < 21 && !hasBeenNotifiedToday('weekly')) { showToast("¡Fin de la semana! Revisa tus logros en la pestaña de Progreso. ¡Prepárate para la siguiente!", "Balance Semanal", "fa-clipboard-check", "text-emerald-400"); setNotifiedToday('weekly'); }
+        };
+
+        proactiveCoach();
+        const intervalId = setInterval(proactiveCoach, 5 * 60 * 1000); // Check every 5 minutes
+        return () => clearInterval(intervalId);
+    }, [showToast]);
+
+
+    return (
+        <div className="container mx-auto p-4 md:p-8">
+            <Header />
+            <div className="flex flex-col lg:flex-row gap-8">
+                <MainContent 
+                    gameState={gameState} 
+                    onWorkoutCompletion={handleWorkoutCompletion}
+                    onSavePainDiary={handleSavePainDiary}
+                    getXPForLevel={getXPForLevel}
+                />
+                <ChatAside 
+                    chatHistory={gameState.chatHistory}
+                    isTyping={isTyping}
+                    onSendMessage={handleSendMessage}
+                />
+            </div>
+             <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-3">
+                {toasts.map(toast => (
+                    <Toast key={toast.id} {...toast} onDismiss={() => dismissToast(toast.id)} />
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export default App;
