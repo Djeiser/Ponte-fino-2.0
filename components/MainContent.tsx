@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { Chart } from 'chart.js';
+import Chart from 'chart.js/auto';
 import type { GameState, Exercise, PainLog, Achievement } from '../types';
 import { WORKOUTS } from '../constants';
 
@@ -76,9 +76,7 @@ const PainDiaryTab: React.FC<{ painDiary: GameState['painDiary']; onSavePainDiar
             chartInstance.current.destroy();
         }
 
-        const ChartJSType = (window as any).Chart;
-
-        chartInstance.current = new ChartJSType(ctx, {
+        chartInstance.current = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
@@ -100,7 +98,10 @@ const PainDiaryTab: React.FC<{ painDiary: GameState['painDiary']; onSavePainDiar
                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context: any) => `Dolor: ${context.raw}` } } }
             }
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        
+        return () => {
+            chartInstance.current?.destroy();
+        }
     }, [painDiary]);
 
 
@@ -208,8 +209,9 @@ const MainContent: React.FC<MainContentProps> = ({ gameState, onWorkoutCompletio
     const [activeTab, setActiveTab] = useState('daily');
     const tabs = [
         { id: 'progress', label: 'Progreso', icon: 'fa-trophy' },
-        { id: 'diary', label: 'Diario de Dolor', icon: 'fa-book-medical' },
-        { id: 'daily', label: 'Diario' },
+        { id: 'diary', label: 'Diario', icon: 'fa-book-medical' },
+        { id: 'daily', label: 'Activación', icon: 'fa-sun' },
+        { id: 'warmup', label: 'Calentamiento', icon: 'fa-fire' },
         { id: 'day1', label: 'Día 1' },
         { id: 'day2', label: 'Día 2' },
         { id: 'day3', label: 'Día 3' },
@@ -217,6 +219,7 @@ const MainContent: React.FC<MainContentProps> = ({ gameState, onWorkoutCompletio
 
     const workoutTitles: { [key: string]: string } = {
         daily: 'Higiene Postural y Activación (RPE 5)',
+        warmup: 'Calentamiento Específico (Antes de cada sesión de Fuerza)',
         day1: 'Día 1: Full Body',
         day2: 'Día 2: Full Body',
         day3: 'Día 3: Full Body',
@@ -238,7 +241,7 @@ const MainContent: React.FC<MainContentProps> = ({ gameState, onWorkoutCompletio
                 <div>
                     {activeTab === 'progress' && <ProgressTab gameState={gameState} getXPForLevel={getXPForLevel}/>}
                     {activeTab === 'diary' && <PainDiaryTab painDiary={gameState.painDiary} onSavePainDiary={onSavePainDiary}/>}
-                    {['daily', 'day1', 'day2', 'day3'].includes(activeTab) && (
+                    {['daily', 'warmup', 'day1', 'day2', 'day3'].includes(activeTab) && (
                         <WorkoutTab 
                             dayId={activeTab} 
                             title={workoutTitles[activeTab]} 
