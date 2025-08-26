@@ -51,3 +51,5 @@ export async function analyzeSensationWithGemini(sensation: string): Promise<str
     } catch (error) {
         console.error("Error calling Gemini API for sensation analysis:", error);
         return "He tenido un problema de conexión. ¿Podrías intentarlo de nuevo?";
+    }
+}
