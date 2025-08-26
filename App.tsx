@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { GameState, ChatMessage, PainLog, ToastInfo } from './types';
 import { INITIAL_GAME_STATE, INITIAL_ACHIEVEMENTS } from './constants';
-import { streamGeminiResponse, streamAnalyzeSensation } from './services/geminiService';
+import GeminiService from './services/geminiService';
 import MainContent from './components/MainContent';
 import ChatAside from './components/ChatAside';
 
@@ -191,8 +191,8 @@ function App() {
         setIsTyping(true);
     
         const stream = isSensationAnalysis
-            ? streamAnalyzeSensation(message.replace('He sentido: ', ''))
-            : streamGeminiResponse(gameState.chatHistory, message);
+            ? GeminiService.streamAnalyzeSensation(message.replace('He sentido: ', ''))
+            : GeminiService.streamGeminiResponse(gameState.chatHistory, message);
     
         let firstChunk = true;
         let fullResponseText = "";
