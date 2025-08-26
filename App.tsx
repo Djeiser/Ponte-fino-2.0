@@ -208,7 +208,11 @@ function App() {
                 setGameState(prevState => {
                     const newHistory = [...prevState.chatHistory];
                     if (newHistory.length > 0 && newHistory[newHistory.length - 1].role === 'model') {
-                        newHistory[newHistory.length - 1].parts[0].text = fullResponseText;
+                        const lastMessage = newHistory[newHistory.length - 1];
+                        newHistory[newHistory.length - 1] = {
+                            ...lastMessage,
+                            parts: [{ text: fullResponseText }],
+                        };
                     }
                     return { ...prevState, chatHistory: newHistory };
                 });
