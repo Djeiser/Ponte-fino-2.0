@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { GameState, ChatMessage, PainLog, ToastInfo } from './types';
 import { INITIAL_GAME_STATE, INITIAL_ACHIEVEMENTS } from './constants';
-import { getGeminiResponse, analyzeSensationWithGemini } from './services/geminiService';
+import { streamGeminiResponse, streamAnalyzeSensation } from './services/geminiService';
 import MainContent from './components/MainContent';
 import ChatAside from './components/ChatAside';
 
@@ -36,11 +36,51 @@ const Toast: React.FC<ToastInfo & { onDismiss: () => void }> = ({ message, title
     );
 };
 
+const InfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4" onClick={onClose} role="dialog" aria-modal="true">
+            <div className="bg-white rounded-xl shadow-2xl p-6 md:p-8 max-w-2xl w-full relative" onClick={e => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute top-3 right-4 text-slate-400 hover:text-slate-600 text-3xl" aria-label="Cerrar modal">
+                    &times;
+                </button>
+                <h2 className="text-2xl font-bold text-emerald-600 mb-4">Tu Coach de Recuperación Personalizado</h2>
+                <div className="text-slate-700 space-y-3 max-h-[70vh] overflow-y-auto pr-3">
+                    <h3 className="font-semibold text-lg text-slate-800">Filosofía y Principios Clave</h3>
+                    <p>Esta primera fase de tu recuperación se rige por principios innegociables diseñados para construir una base sólida y a prueba de lesiones. El objetivo no es la fatiga, sino la calidad y el control.</p>
+                    <div className="p-3 bg-slate-50 rounded-lg border">
+                        <h4 className="font-bold text-slate-800">Escala de Dolor (0-10): Tu límite es 3</h4>
+                        <p className="text-sm">Cualquier molestia por encima de 3 durante un ejercicio es una señal para parar, reducir el peso o ajustar la técnica. El trabajo de movilidad y activación debe realizarse con 0 dolor.</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border">
+                        <h4 className="font-bold text-slate-800">Esfuerzo Percibido (RPE)</h4>
+                        <p className="text-sm">Es tu guía de intensidad. En esta fase, la mayoría de tus ejercicios de fuerza se mantendrán en un RPE 6-8, lo que significa que siempre terminas la serie sintiendo que podrías haber hecho 2-4 repeticiones más (RIR 2-4).</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border">
+                        <h4 className="font-bold text-slate-800">Método de Progresión</h4>
+                        <p className="text-sm">La mejora es gradual. Primero, aumenta las repeticiones dentro del rango establecido. Solo cuando completes todas las series en el rango alto con buena técnica, podrás aumentar ligeramente el peso.</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border">
+                        <h4 className="font-bold text-slate-800">La Secuencia de Activación</h4>
+                        <p className="text-sm">Antes de cada repetición de fuerza, recuerda la secuencia: Exhala (para activar tu core profundo) -&gt; Contrae (mantén la tensión) -&gt; Muévete (inicia el levantamiento).</p>
+                    </div>
+                    <div className="p-3 bg-slate-50 rounded-lg border">
+                        <h4 className="font-bold text-slate-800">Consistencia &gt; Intensidad</h4>
+                        <p className="text-sm">Es más valioso cumplir con tu plan de forma constante, incluso en días de baja energía, que hacer una sesión esporádica hasta el agotamiento.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 function App() {
     const [gameState, setGameState] = useState<GameState>(INITIAL_GAME_STATE);
     const [isTyping, setIsTyping] = useState(false);
     const [toasts, setToasts] = useState<ToastInfo[]>([]);
+    const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
 
     const showToast = useCallback((message: string, title: string, icon: string, iconColor: string) => {
         setToasts(currentToasts => [...currentToasts, { id: Date.now(), message, title, icon, iconColor }]);
@@ -127,7 +167,7 @@ function App() {
                 newState.lastDailyCompletion = new Date().toISOString();
                 showToast(`¡Rutina diaria completada! Racha actual: ${newState.dailyStreak} días.`, '¡Racha!', 'fa-fire', 'text-orange-400');
                 addXP(25);
-            } else {
+            } else if (dayId !== 'warmup') {
                 showToast(`¡Entrenamiento del ${dayId.replace('day', 'Día ')} completado!`, '¡Entreno Completo!', 'fa-trophy', 'text-yellow-400');
                 addXP(75);
             }
@@ -146,16 +186,38 @@ function App() {
 
     const handleSendMessage = async (message: string, isSensationAnalysis: boolean) => {
         const userMessage: ChatMessage = { role: 'user', parts: [{ text: message }] };
-        setGameState(prevState => ({ ...prevState, chatHistory: [...prevState.chatHistory, userMessage] }));
+        const currentHistory = [...gameState.chatHistory, userMessage];
+        setGameState(prevState => ({ ...prevState, chatHistory: currentHistory }));
         setIsTyping(true);
-
-        const responseText = isSensationAnalysis
-            ? await analyzeSensationWithGemini(message.replace('He sentido: ', ''))
-            : await getGeminiResponse(gameState.chatHistory, message);
-        
-        const botMessage: ChatMessage = { role: 'model', parts: [{ text: responseText }] };
-        setGameState(prevState => ({ ...prevState, chatHistory: [...prevState.chatHistory, botMessage] }));
-        setIsTyping(false);
+    
+        const stream = isSensationAnalysis
+            ? streamAnalyzeSensation(message.replace('He sentido: ', ''))
+            : streamGeminiResponse(gameState.chatHistory, message);
+    
+        let firstChunk = true;
+        let fullResponseText = "";
+    
+        for await (const chunk of stream) {
+            fullResponseText += chunk;
+            if (firstChunk) {
+                setIsTyping(false);
+                const botMessage: ChatMessage = { role: 'model', parts: [{ text: fullResponseText }] };
+                setGameState(prevState => ({ ...prevState, chatHistory: [...prevState.chatHistory, botMessage] }));
+                firstChunk = false;
+            } else {
+                setGameState(prevState => {
+                    const newHistory = [...prevState.chatHistory];
+                    if (newHistory.length > 0 && newHistory[newHistory.length - 1].role === 'model') {
+                        newHistory[newHistory.length - 1].parts[0].text = fullResponseText;
+                    }
+                    return { ...prevState, chatHistory: newHistory };
+                });
+            }
+        }
+    
+        if (firstChunk) { 
+            setIsTyping(false);
+        }
     };
 
     // Load and save state
@@ -235,6 +297,13 @@ function App() {
 
     return (
         <div className="container mx-auto p-4 md:p-8">
+             <button
+                onClick={() => setIsInfoModalOpen(true)}
+                className="fixed top-6 right-6 text-slate-400 hover:text-emerald-500 text-3xl z-40 transition-colors"
+                aria-label="Mostrar información clave"
+            >
+                <i className="fas fa-info-circle"></i>
+            </button>
             <Header />
             <div className="flex flex-col lg:flex-row gap-8">
                 <MainContent 
@@ -254,6 +323,7 @@ function App() {
                     <Toast key={toast.id} {...toast} onDismiss={() => dismissToast(toast.id)} />
                 ))}
             </div>
+            <InfoModal isOpen={isInfoModalOpen} onClose={() => setIsInfoModalOpen(false)} />
         </div>
     );
 }
