@@ -63,10 +63,10 @@ const InfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
                     </div>
                     <div className="p-3 bg-slate-50 rounded-lg border">
                         <h4 className="font-bold text-slate-800">La Secuencia de Activación</h4>
-                        <p className="text-sm">Antes de cada repetición de fuerza, recuerda la secuencia: Exhala (para activar tu core profundo) -> Contrae (mantén la tensión) -> Muévete (inicia el levantamiento).</p>
+                        <p className="text-sm">{'Antes de cada repetición de fuerza, recuerda la secuencia: Exhala (para activar tu core profundo) → Contrae (mantén la tensión) → Muévete (inicia el levantamiento).'}</p>
                     </div>
                     <div className="p-3 bg-slate-50 rounded-lg border">
-                        <h4 className="font-bold text-slate-800">Consistencia > Intensidad</h4>
+                        <h4 className="font-bold text-slate-800">{'Consistencia > Intensidad'}</h4>
                         <p className="text-sm">Es más valioso cumplir con tu plan de forma constante, incluso en días de baja energía, que hacer una sesión esporádica hasta el agotamiento.</p>
                     </div>
                 </div>
