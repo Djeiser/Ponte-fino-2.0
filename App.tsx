@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { GameState, ChatMessage, PainLog, ToastInfo } from './types';
 import { INITIAL_GAME_STATE, INITIAL_ACHIEVEMENTS } from './constants';
-import GeminiService from './services/geminiService';
+import { streamGeminiResponse, streamAnalyzeSensation } from './services/geminiService';
 import MainContent from './components/MainContent';
 import ChatAside from './components/ChatAside';
 
@@ -63,10 +63,10 @@ const InfoModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen,
                     </div>
                     <div className="p-3 bg-slate-50 rounded-lg border">
                         <h4 className="font-bold text-slate-800">La Secuencia de Activación</h4>
-                        <p className="text-sm">Antes de cada repetición de fuerza, recuerda la secuencia: Exhala (para activar tu core profundo) -&gt; Contrae (mantén la tensión) -&gt; Muévete (inicia el levantamiento).</p>
+                        <p className="text-sm">Antes de cada repetición de fuerza, recuerda la secuencia: Exhala (para activar tu core profundo) -> Contrae (mantén la tensión) -> Muévete (inicia el levantamiento).</p>
                     </div>
                     <div className="p-3 bg-slate-50 rounded-lg border">
-                        <h4 className="font-bold text-slate-800">Consistencia &gt; Intensidad</h4>
+                        <h4 className="font-bold text-slate-800">Consistencia > Intensidad</h4>
                         <p className="text-sm">Es más valioso cumplir con tu plan de forma constante, incluso en días de baja energía, que hacer una sesión esporádica hasta el agotamiento.</p>
                     </div>
                 </div>
@@ -191,8 +191,8 @@ function App() {
         setIsTyping(true);
     
         const stream = isSensationAnalysis
-            ? GeminiService.streamAnalyzeSensation(message.replace('He sentido: ', ''))
-            : GeminiService.streamGeminiResponse(gameState.chatHistory, message);
+            ? streamAnalyzeSensation(message.replace('He sentido: ', ''))
+            : streamGeminiResponse(gameState.chatHistory, message);
     
         let firstChunk = true;
         let fullResponseText = "";
