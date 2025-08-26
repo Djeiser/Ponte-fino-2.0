@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import type { ChatMessage } from '../types';
 import { WORKOUTS } from '../constants';
@@ -30,7 +29,7 @@ Actúa como un coach virtual experto, combinando los roles de traumatólogo, fis
 2.  **Responder Preguntas sobre el Plan:** Tienes acceso a su plan de entrenamiento. Responde a sus dudas sobre los ejercicios.
 3.  **Ofrecer Alternativas Seguras:** Si un ejercicio le causa molestias o quiere una alternativa, sugiérele una opción segura y equivalente, teniendo en cuenta su condición. Por ejemplo, si un 'Peso Muerto Rumano' le molesta, podrías sugerir un 'Puente de Glúteos a una pierna' para trabajar la cadena posterior sin cargar la bisagra lumbo-pélvica.
 4.  **Regla de Oro de Seguridad:** NUNCA des consejos médicos que reemplacen a un profesional. Si el usuario describe un dolor agudo, punzante, que se irradia, o superior a un 4/10 en la escala de dolor, tu respuesta prioritaria debe ser aconsejarle que pare inmediatamente y consulte a un fisioterapeuta o médico.
-5.  **Tono y Estilo:** Mantén las respuestas concisas, positivas y de apoyo. Usa emojis para ser más cercano y empático.
+5.  **Tono y Estilo:** Mantén las respuestas concisas, positivas y de apoyo. Usa emojis para ser más cercano y empático. Cuando crees listas o enumeraciones (como una lista de ejercicios), formatea cada elemento en una nueva línea, comenzando con un asterisco (*) seguido de un espacio. Usa asteriscos para poner en cursiva el nombre del ejercicio. Por ejemplo: "* *Nombre del Ejercicio:* Detalles del ejercicio".
 
 **Plan de Entrenamiento del Usuario:**
 ${workoutsString}
@@ -39,28 +38,22 @@ Basándote en toda esta información, responde a las preguntas del usuario.
 `;
 
 
-export async function getGeminiResponse(history: ChatMessage[], newMessage: string): Promise<string> {
+export async function* streamGeminiResponse(history: ChatMessage[], newMessage: string): AsyncGenerator<string> {
     const userMessage: ChatMessage = { role: "user", parts: [{ text: newMessage }] };
     
     let historyForApi = [...history];
-    // The API requires conversations to start with a 'user' role.
-    // Our history might start with a 'model' role (e.g., the welcome message).
-    // Let's find the first user message and start the history from there.
     const firstUserIndex = historyForApi.findIndex(msg => msg.role === 'user');
 
     if (firstUserIndex === -1) {
-        // No user messages in history yet (e.g. only welcome message),
-        // so the API history should be empty.
         historyForApi = [];
     } else if (firstUserIndex > 0) {
-        // There are model messages before the first user message, slice them off.
         historyForApi = historyForApi.slice(firstUserIndex);
     }
     
     const contents = [...historyForApi, userMessage];
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await ai.models.generateContentStream({
             model: model,
             contents: contents,
             config: {
@@ -68,27 +61,31 @@ export async function getGeminiResponse(history: ChatMessage[], newMessage: stri
                 temperature: 0.7,
             },
         });
-        return response.text ?? "";
+        for await (const chunk of response) {
+            yield chunk.text ?? "";
+        }
     } catch (error) {
         console.error("Error calling Gemini API:", error);
-        return "He tenido un problema de conexión. ¿Podrías intentarlo de nuevo?";
+        yield "He tenido un problema de conexión. ¿Podrías intentarlo de nuevo?";
     }
 }
 
-export async function analyzeSensationWithGemini(sensation: string): Promise<string> {
+export async function* streamAnalyzeSensation(sensation: string): AsyncGenerator<string> {
     const prompt = `Como asistente virtual de fisioterapia, un usuario con discopatía lumbar describe una sensación: "${sensation}". Tu tarea es ofrecer una sugerencia de apoyo, segura y no médica. Puedes sugerir enfocarte en la técnica, reducir el peso, realizar un calentamiento específico (como Gato-Camello), o recordar la regla de 'dolor por debajo de 3/10'. No diagnostiques. Enmarca tu respuesta como un consejo útil a considerar. Sé breve (máx 60 palabras) y usa un tono tranquilizador.`;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await ai.models.generateContentStream({
             model: model,
             contents: prompt,
              config: {
                 temperature: 0.7,
             },
         });
-        return response.text ?? "";
+        for await (const chunk of response) {
+            yield chunk.text ?? "";
+        }
     } catch (error) {
         console.error("Error calling Gemini API for sensation analysis:", error);
-        return "He tenido un problema de conexión. ¿Podrías intentarlo de nuevo?";
+        yield "He tenido un problema de conexión. ¿Podrías intentarlo de nuevo?";
     }
 }
